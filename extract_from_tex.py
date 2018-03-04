@@ -18,10 +18,11 @@ class RegexParts(Enum):
     ExtraCharactersAfterBeginTag = 2,
     ExtraOptionsWithBrackets = 3,
     ExtraOptionsWithoutBrackets = 4,
-    MainContent = 5,
-    ExtraCharactersBeforeEndTag = 6,
-    MainEndTag = 7,
-    ExtraCharactersAfterEndTag = 8,
+    LabelWithoutBrackets = 5,
+    MainContent = 6,
+    ExtraCharactersBeforeEndTag = 7,
+    MainEndTag = 8,
+    ExtraCharactersAfterEndTag = 9,
 
 
 class RegexBuilder:
@@ -38,12 +39,12 @@ class RegexBuilder:
 
     @staticmethod
     def build_regex_options():
-        # Make regex case insensitive
-        return '(?i)'
+        # Make regex case insensitive, non-greedy
+        return '(?is)'
 
     @staticmethod
     def build_content_matcher():
-        return '\s*((?s).*?)?\s*'
+        return '\s*(.*?)?\s*'
 
     def build_tag_matcher(self, tagname, extra_options_brackets=False):
         tag_matcher = '\\\\'
@@ -52,7 +53,7 @@ class RegexBuilder:
         tag_matcher += self.build_tagname_matcher()
         tag_matcher += '\}'
         if extra_options_brackets:
-            tag_matcher += '(\[(.*)?\])?'
+            tag_matcher += '(\[([^\]]*)\]|\s*\\\\label\{([^\}]*)\})?'
         return tag_matcher
 
     def build_tagname_matcher(self):
@@ -78,7 +79,11 @@ class MatchedOutputProcessor:
     def get_csv_array(self, match):
 
         groups = match.groups()
-        name = self.get_name(groups[RegexParts.ExtraOptionsWithoutBrackets.value[0]])
+
+        if groups[RegexParts.ExtraOptionsWithoutBrackets.value[0]]:
+            name = self.get_name(groups[RegexParts.ExtraOptionsWithoutBrackets.value[0]])
+        else:
+            name = self.get_name(groups[RegexParts.LabelWithoutBrackets.value[0]])
         content = groups[RegexParts.MainContent.value[0]]
         if content is None:
             return None
@@ -88,12 +93,21 @@ class MatchedOutputProcessor:
     def get_name(extra_options):
         if extra_options is None or not len(extra_options):
             return ''
-        # Either this is already the full name, OR this contains 'name='
-        match = re.search('name=([^,]+)?', extra_options)
-        if match:
-            return match.groups()[0]
+        if ':' in extra_options:
+            # Name is given by a label, which is usually of the form cor:bla, so filter bla out
+            # Either this is already the full name, OR this contains 'name='
+            parts = extra_options.split(':')
+            if len(parts) > 2:
+                return ':'.join(parts[1:])
+            else:
+                return parts[0] if len(parts) == 1 else parts[1]
         else:
-            return extra_options
+            # Either this is already the full name, OR this contains 'name='
+            match = re.search('name=([^,]+)?', extra_options)
+            if match:
+                return match.groups()[0]
+            else:
+                return extra_options
 
 
 @click.command()
