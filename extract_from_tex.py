@@ -43,7 +43,7 @@ class RegexBuilder:
 
     @staticmethod
     def build_content_matcher():
-        return '\s*(.*)?\s*'
+        return '\s*((?s).*?)?\s*'
 
     def build_tag_matcher(self, tagname, extra_options_brackets=False):
         tag_matcher = '\\\\'
